@@ -46,8 +46,8 @@ void setup() {
   tft.begin();
   tft.fillScreen(BLACK);
   
-  digitalWrite(rightButton, HIGH);
-  digitalWrite(leftButton, HIGH);
+  pinMode(rightButton, INPUT_PULLUP);
+  pinMode(leftButton, INPUT_PULLUP);
 
   attachInterrupt(digitalPinToInterrupt(rightButton), rightButtonListener, FALLING);
   attachInterrupt(digitalPinToInterrupt(leftButton), leftButtonListener, FALLING);
