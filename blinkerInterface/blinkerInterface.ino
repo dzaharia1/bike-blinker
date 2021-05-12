@@ -1,17 +1,16 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1351.h>
 #include <SPI.h>
+#include <RH_RF69.h>
 
-// Screen dimensions
+// set up tft properties
 #define SCREEN_WIDTH  128
-#define SCREEN_HEIGHT 128 // Change this to 96 for 1.27" OLED.
-
-// You can use any (4 or) 5 pins 
-#define SCLK_PIN 8
-#define MOSI_PIN 9
-#define DC_PIN   4
-#define CS_PIN   5
-#define RST_PIN  6
+#define SCREEN_HEIGHT 128
+#define SCLK_PIN A2
+#define MOSI_PIN A1
+#define DC_PIN   A3
+#define CS_PIN   A5
+#define RST_PIN  A4
 
 // Color definitions
 #define  BLACK           0x0000
@@ -23,87 +22,114 @@
 #define YELLOW          0xFFE0  
 #define WHITE           0xFFFF
 
-#define NO_BLINKER 0
-#define LEFT_BLINKER 1
-#define RIGHT_BLINKER 2
+//set up radio
+#define RFM69_CS      8
+#define RFM69_INT     3
+#define RFM69_RST     4
+#define LED           13
+#define RF69_FREQ 915.0
 
-volatile int blinkMode = NO_BLINKER;
+
+const int noBlinker = 0;
+const int leftBlinker = 1;
+const int rightBlinker = 21;
+
+const long debounceTime = 200;
+const int rightButton = 11;
+const int leftButton = 13;
+
+volatile int blinkMode = noBlinker;
 volatile unsigned long last_micros;
-long debounceTime = 200;
-
-const int rightButton = 2;
-const int leftButton = 3;
 
 struct coordinate {
   int x;
   int y;
 };
 
-// Option 1: use any pins but a little slower
-Adafruit_SSD1351 tft = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, CS_PIN, DC_PIN, MOSI_PIN, SCLK_PIN, RST_PIN);  
+//Initialize the display
+Adafruit_SSD1351 tft = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, CS_PIN, DC_PIN, MOSI_PIN, SCLK_PIN, RST_PIN);
+
+//Initialize the radio
+RH_RF69 radio(RFM69_CS, RFM69_INT);
+
 void setup() {
   Serial.begin(9600);
-  tft.begin();
-  tft.fillScreen(BLACK);
   
   pinMode(rightButton, INPUT_PULLUP);
   pinMode(leftButton, INPUT_PULLUP);
+  pinMode(RFM69_RST, OUTPUT);
+  digitalWrite(RFM69_RST, LOW);
+  tft.begin();
+
+//  Reset the radio
+  digitalWrite(RFM69_RST, HIGH);
+  delay(10);
+  digitalWrite(RFM69_RST, LOW);
+  delay(10);
+
+  if (!radio.init()) {
+    Serial.println("Radio failed to initialize");
+    while (1);
+  }
+  Serial.println("Radio initialized OK");
+  if (!radio.setFrequency(RF69_FREQ)) {
+    Serial.println("Failed to set frequency");
+  }
+
+  radio.setTxPower(20, true);
+
+  uint8_t key[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
+                    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+  radio.setEncryptionKey(key);
+
+  Serial.print("RFM69 radio @");  Serial.print((int)RF69_FREQ);  Serial.println(" MHz");
 
   attachInterrupt(digitalPinToInterrupt(rightButton), rightButtonListener, FALLING);
   attachInterrupt(digitalPinToInterrupt(leftButton), leftButtonListener, FALLING);
 
-  blinkMode = NO_BLINKER;
+  blinkMode = noBlinker;
   last_micros = micros();
-}
-
-void loop() {
-  drawBlinker();
-}
-
-void drawBlinker () {
-  switch (blinkMode) {
-    case NO_BLINKER:
-      Serial.println("none");
-      tft.fillScreen(BLACK);
-      break;
-    case LEFT_BLINKER:
-      leftBlinker();
-      break;
-    case RIGHT_BLINKER:
-      rightBlinker();
-      break;
-  }
-}
-
-void rightBlinker () {
-  Serial.println("right");
-  tft.setRotation(3);
-  for (int i = 0; i < SCREEN_WIDTH; i ++) {
-    if (blinkMode != RIGHT_BLINKER) { break; }
-    tft.drawLine(0, i, SCREEN_WIDTH, i, YELLOW);
-  }
   tft.fillScreen(BLACK);
 }
 
-void leftBlinker () {
-  Serial.println("left");
-  tft.setRotation(1);
-  for (int i = 0; i < SCREEN_WIDTH; i ++) {
-    if (blinkMode != LEFT_BLINKER) { break; }
-    tft.drawLine(0, i, SCREEN_WIDTH, i, YELLOW);
+void loop() {
+  switch (blinkMode) {
+    case noBlinker:
+      tft.fillScreen(BLACK);
+      break;
+    case leftBlinker:
+      tft.setRotation(1);
+      runBlink();
+      break;
+    case rightBlinker:
+      tft.setRotation(3);
+      runBlink();
+      break;
+  }
+}
+
+void runBlink () {
+  int initialBlinkMode = blinkMode;
+  int triangleHeight = 40;
+  for (int i = 0; i < SCREEN_WIDTH + triangleHeight; i ++) {
+    if (blinkMode != initialBlinkMode) { break; }
+//    tft.drawLine(0, i, SCREEN_WIDTH, i, YELLOW);
+    tft.drawTriangle(SCREEN_WIDTH / 2, i, SCREEN_WIDTH, i - triangleHeight, 0, i - triangleHeight, YELLOW);
+    
   }
   tft.fillScreen(BLACK);
 }
 
 void rightButtonListener () {
   if (long(micros() - last_micros) >= debounceTime * 1000) {
-    if (blinkMode == RIGHT_BLINKER) {
+    if (blinkMode == rightBlinker) {
       Serial.println("unset right");
-      blinkMode = NO_BLINKER;
+      blinkMode = noBlinker;
     } else {
       Serial.println("set right");
-      blinkMode = RIGHT_BLINKER;
+      blinkMode = rightBlinker;
     }
+    sendState();
     
     last_micros = micros();
   }
@@ -111,14 +137,33 @@ void rightButtonListener () {
 
 void leftButtonListener () {
   if (long(micros() - last_micros) >= debounceTime * 1000) {
-    if (blinkMode == LEFT_BLINKER) {
+    if (blinkMode == leftBlinker) {
       Serial.println("unset left");
-      blinkMode = NO_BLINKER;
+      blinkMode = noBlinker;
     } else {
       Serial.println("set left");
-      blinkMode = LEFT_BLINKER;
+      blinkMode = leftBlinker;
     }
+    sendState();
     
     last_micros = micros();
   }
+}
+
+void sendState () {
+  char stateMessage[1];
+  itoa(blinkMode, stateMessage, 10);
+  radio.send((uint8_t *)stateMessage, 1);
+//  radio.waitPacketSent();
+  uint8_t buf[RH_RF69_MAX_MESSAGE_LEN];
+  uint8_t len = sizeof(buf);
+
+//  if (radio.waitAvailableTimeout(500)) {
+//    if (radio.recv(buf, &len)) {
+//      Serial.print("Got a reply: ");
+//      Serial.println((char*)buf);
+//    }
+//  } else {
+//    Serial.println("No reply");
+//  }
 }
