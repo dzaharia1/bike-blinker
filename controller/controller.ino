@@ -6,11 +6,11 @@
 // set up tft properties
 #define SCREEN_WIDTH  128
 #define SCREEN_HEIGHT 128
-#define SCLK_PIN A2
-#define MOSI_PIN A1
-#define DC_PIN   A3
-#define CS_PIN   A5
-#define RST_PIN  A4
+#define SCLK_PIN 21   // CL
+#define MOSI_PIN 20   // SI
+#define DC_PIN   5    // DC
+#define CS_PIN   10   // OC
+#define RST_PIN  6    // R
 
 // Color definitions
 #define  BLACK           0x0000
@@ -29,14 +29,16 @@
 #define LED           13
 #define RF69_FREQ 915.0
 
+#define POWER_PIN A7
 
 const int noBlinker = 0;
 const int leftBlinker = 1;
 const int rightBlinker = 21;
 
 const long debounceTime = 200;
-const int rightButton = 11;
-const int leftButton = 13;
+const int rightButton = 12;
+const int leftButton = 11;
+const int centerButton = 13;
 
 volatile int blinkMode = noBlinker;
 volatile unsigned long last_micros;
@@ -57,7 +59,9 @@ void setup() {
   
   pinMode(rightButton, INPUT_PULLUP);
   pinMode(leftButton, INPUT_PULLUP);
+  pinMode(centerButton, INPUT_PULLUP);
   pinMode(RFM69_RST, OUTPUT);
+  pinMode(POWER_PIN, INPUT);
   digitalWrite(RFM69_RST, LOW);
   tft.begin();
 
@@ -86,9 +90,13 @@ void setup() {
 
   attachInterrupt(digitalPinToInterrupt(rightButton), rightButtonListener, FALLING);
   attachInterrupt(digitalPinToInterrupt(leftButton), leftButtonListener, FALLING);
+  attachInterrupt(digitalPinToInterrupt(centerButton), centerButtonListener, FALLING);
 
   blinkMode = noBlinker;
   last_micros = micros();
+
+  checkPower();
+  
   tft.fillScreen(BLACK);
 }
 
@@ -150,6 +158,15 @@ void leftButtonListener () {
   }
 }
 
+void centerButtonListener () {
+  if (long(micros() - last_micros) >= debounceTime * 1000) {
+    Serial.println("unset blinker");
+    blinkMode = noBlinker;
+    sendState();
+    last_micros = micros();
+  }
+}
+
 void sendState () {
   char stateMessage[1];
   itoa(blinkMode, stateMessage, 10);
@@ -166,4 +183,23 @@ void sendState () {
 //  } else {
 //    Serial.println("No reply");
 //  }
+}
+
+void checkPower() {
+  int currPower = analogRead(POWER_PIN) * 2 * 3.3 / 1024;
+
+  if (currPower <= 3.4) {
+    tft.setTextSize(2.5);
+    tft.setTextColor(RED);
+    tft.setCursor(25, 0);
+    tft.println("Please");
+    tft.setCursor(10, 20);
+    tft.println("recharge!");
+    tft.fillRect(15, 70, 5, 20, RED);
+    tft.drawRect(20, 50, 90, 60, RED);
+    tft.fillRect(100, 50, 10, 60, RED);
+//    tft.drawRect
+    
+  }
+  delay(5000);
 }
