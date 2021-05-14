@@ -135,9 +135,6 @@ boolean attemptHandshake() {
   dtostrf(currPower, 4, 2, powerString);
   Serial.print("  sending battery level ");
   Serial.println(powerString);
-  powerString[0] = '3';
-  powerString[1] = '.';
-  powerString[2] = '2';
   radio.send((uint8_t *)powerString, strlen(powerString));
 
 //  listen for a reply from the controller
