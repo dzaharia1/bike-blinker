@@ -23,8 +23,6 @@ const char left = '1';
 const char right = '2';
 char blinkMode = noBlinker;
 
-boolean batteryChecked = false;
-
 // Display properties
 const int maxBrightness = 255;
 const int minBrightness = 0;
@@ -66,13 +64,14 @@ void setup () {
 
   ledMatrix.fillScreen(minBrightness);
 
-//  check the battery level before proceeding
   pinMode(POWER_PIN, INPUT);
+
+  while (!attemptHandshake()) {
+    delay(500);
+  }
 }
 
 void loop () {
-  if (!batteryChecked) { checkPower(); }
-  
   switch (blinkMode) {
     case noBlinker:
       ledMatrix.fillScreen(minBrightness);
@@ -103,8 +102,6 @@ void loop () {
 
     // todo: reply to confirm reciept
   }
-
-//  delay(200);
 }
 
 void runBlinker() {
@@ -122,24 +119,39 @@ void runBlinker() {
   ledMatrix.fillScreen(minBrightness);
 }
 
-void checkPower () {
-  Serial.println("checking power");
+boolean attemptHandshake() {
+  Serial.println("Attempting handshake");
+  // flash the led matrix to indicate attempting pairing
+  for (int i = 0; i < 2; i ++) {
+    ledMatrix.fillScreen(maxBrightness / 2);
+    delay(50);
+    ledMatrix.fillScreen(minBrightness);
+    delay(50);
+  }
+  
+  // send the controller the current battery level
   float currPower = analogRead(POWER_PIN) * 2 * 3.3 / 1024;
-  char payload[RH_RF69_MAX_MESSAGE_LEN];
-  dtostrf(currPower, 4, 2, payload);
+  char powerString[RH_RF69_MAX_MESSAGE_LEN];
+  dtostrf(currPower, 4, 2, powerString);
+  Serial.print("  sending battery level ");
+  Serial.println(powerString);
+  powerString[0] = '3';
+  powerString[1] = '.';
+  powerString[2] = '2';
+  radio.send((uint8_t *)powerString, strlen(powerString));
+
+//  listen for a reply from the controller
   uint8_t replyBuf[RH_RF69_MAX_MESSAGE_LEN];
   uint8_t replyLen = sizeof(replyBuf);
-  radio.send((uint8_t *)payload, strlen(payload));
-
-//  wait for a reply to make sure that we're done checking the battery
+  boolean handshook = false;
   if (radio.waitAvailableTimeout(500)) {
     if (radio.recv(replyBuf, &replyLen)) {
       if (replyBuf[0] == 'b') {
-        batteryChecked = true;
-        Serial.println("done checking power");
+        Serial.println("  Got a reply");
+        return true;
       }
-    } else {
-      delay(20);
     }
   }
+  Serial.println("  Haven't heard back");
+  return false;
 }

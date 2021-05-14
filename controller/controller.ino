@@ -36,7 +36,7 @@ const int noBlinker = 0;
 const int leftBlinker = 1;
 const int rightBlinker = 21;
 
-const long debounceTime = 200;
+const long debounceTime = 300;
 const int rightButton = 12;
 const int leftButton = 11;
 const int centerButton = 13;
@@ -52,6 +52,8 @@ Adafruit_SSD1351 tft = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, CS_PIN, DC_
 
 //Initialize the radio
 RH_RF69 radio(RFM69_CS, RFM69_INT);
+
+int checkIncrement = 0;
 
 void setup() {
   Serial.begin(9600);
@@ -85,20 +87,31 @@ void setup() {
                     0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08
                   };
   radio.setEncryptionKey(key);
+  tft.fillScreen(BLACK);
 
-  Serial.print("RFM69 radio @");  Serial.print((int)RF69_FREQ);  Serial.println(" MHz");
+  checkBattery();
+  
+//  check that there's a blinker nearby
+  tft.setCursor(0, 0);
+  tft.setTextColor(CYAN);
+  tft.setTextSize(2);
+  tft.println("Listening");
+  tft.println("for");
+  tft.print("blinker");
+  while (!listenForHandshake()) {
+    delay(500);
+  }
 
   attachInterrupt(digitalPinToInterrupt(rightButton), rightButtonListener, FALLING);
   attachInterrupt(digitalPinToInterrupt(leftButton), leftButtonListener, FALLING);
   attachInterrupt(digitalPinToInterrupt(centerButton), centerButtonListener, FALLING);
   last_micros = micros();
 
-  checkPower();
-
   tft.fillScreen(BLACK);
 }
 
 void loop() {
+  
   switch (blinkMode) {
     case noBlinker:
       tft.fillScreen(BLACK);
@@ -111,10 +124,6 @@ void loop() {
       tft.setRotation(3);
       runBlinker();
       break;
-  }
-
-  if (!blinkerBatteryChecked) {
-    checkBlinkerPower();
   }
 }
 
@@ -178,20 +187,10 @@ void sendState () {
   //  radio.waitPacketSent();
   uint8_t buf[RH_RF69_MAX_MESSAGE_LEN];
   uint8_t len = sizeof(buf);
-
-  //  if (radio.waitAvailableTimeout(500)) {
-  //    if (radio.recv(buf, &len)) {
-  //      Serial.print("Got a reply: ");
-  //      Serial.println((char*)buf);
-  //    }
-  //  } else {
-  //    Serial.println("No reply");
-  //  }
 }
 
-void checkPower() {
+void checkBattery() {
   float currPower = analogRead(POWER_PIN) * 2 * 3.3 / 1024;
-
   if (currPower <= 3.4) {
     tft.setTextSize(2.5);
     tft.setTextColor(RED);
@@ -208,42 +207,42 @@ void checkPower() {
   delay(5000);
 }
 
-void checkBlinkerPower () {
-  Serial.println("checking blinker power");
+boolean listenForHandshake() {
+  // indicate listen on screen
+  tft.fillRect(checkIncrement, 70, checkIncrement + 10, 85, CYAN);
+  checkIncrement += 10;
+  if (checkIncrement > SCREEN_WIDTH) {
+    tft.fillRect(0, 70, SCREEN_WIDTH, 85, BLACK);
+    checkIncrement = 0;
+  }
+  
   uint8_t buf[RH_RF69_MAX_MESSAGE_LEN];
   uint8_t len = sizeof(buf);
   char alertChecked[1];
   alertChecked[0] = 'b';
   float blinkerBatteryLevel = 0;
-  noInterrupts();
   if (radio.available()) {
     if (radio.recv(buf, &len)) {
-      if (!len) return;
+      if (!len) return false;
       buf[len] = 0;
       String bufferString = (char *)buf;
       blinkerBatteryLevel = bufferString.toFloat();
-      Serial.println(blinkerBatteryLevel);
+      tft.fillScreen(BLACK);
+      tft.setTextColor(GREEN);
       radio.send((uint8_t *)alertChecked, 1);
-      blinkerBatteryChecked = true;
-      delay(200);
-
+      tft.setCursor(0, 10);
+      tft.println("Connected");
       if (blinkerBatteryLevel <= 3.4) {
-        tft.fillScreen(BLACK);
-        tft.setTextSize(2.5);
         tft.setTextColor(RED);
-        tft.setCursor(18, 0);
-        tft.println("Recharge");
-        tft.setCursor(18, 20);
+        tft.println("Charge");
         tft.println("blinker!");
-        tft.fillRect(15, 70, 5, 20, RED);
-        tft.drawRect(20, 50, 90, 60, RED);
-        tft.fillRect(100, 50, 10, 60, RED);
-        delay(3000);
+        tft.fillRect(15, 75, 5, 30, RED);
+        tft.drawRect(20, 60, 90, 65, RED);
+        tft.fillRect(100, 60, 10, 65, RED);
       }
-    } else {
-      tft.println("Didn't get anything");
+      delay(4000);
+      return true;
     }
   }
-  
-  interrupts();
+  return false;
 }
