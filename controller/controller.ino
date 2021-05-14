@@ -1,3 +1,4 @@
+//#include <avr/stof.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1351.h>
 #include <SPI.h>
@@ -19,7 +20,7 @@
 #define GREEN           0x07E0
 #define CYAN            0x07FF
 #define MAGENTA         0xF81F
-#define YELLOW          0xFFE0  
+#define YELLOW          0xFFE0
 #define WHITE           0xFFFF
 
 //set up radio
@@ -43,10 +44,8 @@ const int centerButton = 13;
 volatile int blinkMode = noBlinker;
 volatile unsigned long last_micros;
 
-struct coordinate {
-  int x;
-  int y;
-};
+//until the blinker has reported its battery level, this is false
+bool blinkerBatteryChecked = false;
 
 //Initialize the display
 Adafruit_SSD1351 tft = Adafruit_SSD1351(SCREEN_WIDTH, SCREEN_HEIGHT, CS_PIN, DC_PIN, MOSI_PIN, SCLK_PIN, RST_PIN);
@@ -56,7 +55,7 @@ RH_RF69 radio(RFM69_CS, RFM69_INT);
 
 void setup() {
   Serial.begin(9600);
-  
+
   pinMode(rightButton, INPUT_PULLUP);
   pinMode(leftButton, INPUT_PULLUP);
   pinMode(centerButton, INPUT_PULLUP);
@@ -65,7 +64,7 @@ void setup() {
   digitalWrite(RFM69_RST, LOW);
   tft.begin();
 
-//  Reset the radio
+  //  Reset the radio
   digitalWrite(RFM69_RST, HIGH);
   delay(10);
   digitalWrite(RFM69_RST, LOW);
@@ -83,7 +82,8 @@ void setup() {
   radio.setTxPower(20, true);
 
   uint8_t key[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
-                    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
+                    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08
+                  };
   radio.setEncryptionKey(key);
 
   Serial.print("RFM69 radio @");  Serial.print((int)RF69_FREQ);  Serial.println(" MHz");
@@ -91,12 +91,10 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(rightButton), rightButtonListener, FALLING);
   attachInterrupt(digitalPinToInterrupt(leftButton), leftButtonListener, FALLING);
   attachInterrupt(digitalPinToInterrupt(centerButton), centerButtonListener, FALLING);
-
-  blinkMode = noBlinker;
   last_micros = micros();
 
   checkPower();
-  
+
   tft.fillScreen(BLACK);
 }
 
@@ -107,23 +105,29 @@ void loop() {
       break;
     case leftBlinker:
       tft.setRotation(1);
-      runBlink();
+      runBlinker();
       break;
     case rightBlinker:
       tft.setRotation(3);
-      runBlink();
+      runBlinker();
       break;
+  }
+
+  if (!blinkerBatteryChecked) {
+    checkBlinkerPower();
   }
 }
 
-void runBlink () {
+void runBlinker () {
   int initialBlinkMode = blinkMode;
   int triangleHeight = 40;
   for (int i = 0; i < SCREEN_WIDTH + triangleHeight; i ++) {
-    if (blinkMode != initialBlinkMode) { break; }
-//    tft.drawLine(0, i, SCREEN_WIDTH, i, YELLOW);
+    if (blinkMode != initialBlinkMode) {
+      break;
+    }
+    //    tft.drawLine(0, i, SCREEN_WIDTH, i, YELLOW);
     tft.drawTriangle(SCREEN_WIDTH / 2, i, SCREEN_WIDTH, i - triangleHeight, 0, i - triangleHeight, YELLOW);
-    
+
   }
   tft.fillScreen(BLACK);
 }
@@ -138,7 +142,7 @@ void rightButtonListener () {
       blinkMode = rightBlinker;
     }
     sendState();
-    
+
     last_micros = micros();
   }
 }
@@ -153,7 +157,7 @@ void leftButtonListener () {
       blinkMode = leftBlinker;
     }
     sendState();
-    
+
     last_micros = micros();
   }
 }
@@ -171,22 +175,22 @@ void sendState () {
   char stateMessage[1];
   itoa(blinkMode, stateMessage, 10);
   radio.send((uint8_t *)stateMessage, 1);
-//  radio.waitPacketSent();
+  //  radio.waitPacketSent();
   uint8_t buf[RH_RF69_MAX_MESSAGE_LEN];
   uint8_t len = sizeof(buf);
 
-//  if (radio.waitAvailableTimeout(500)) {
-//    if (radio.recv(buf, &len)) {
-//      Serial.print("Got a reply: ");
-//      Serial.println((char*)buf);
-//    }
-//  } else {
-//    Serial.println("No reply");
-//  }
+  //  if (radio.waitAvailableTimeout(500)) {
+  //    if (radio.recv(buf, &len)) {
+  //      Serial.print("Got a reply: ");
+  //      Serial.println((char*)buf);
+  //    }
+  //  } else {
+  //    Serial.println("No reply");
+  //  }
 }
 
 void checkPower() {
-  int currPower = analogRead(POWER_PIN) * 2 * 3.3 / 1024;
+  float currPower = analogRead(POWER_PIN) * 2 * 3.3 / 1024;
 
   if (currPower <= 3.4) {
     tft.setTextSize(2.5);
@@ -198,8 +202,48 @@ void checkPower() {
     tft.fillRect(15, 70, 5, 20, RED);
     tft.drawRect(20, 50, 90, 60, RED);
     tft.fillRect(100, 50, 10, 60, RED);
-//    tft.drawRect
-    
+    //    tft.drawRect
+
   }
   delay(5000);
+}
+
+void checkBlinkerPower () {
+  Serial.println("checking blinker power");
+  uint8_t buf[RH_RF69_MAX_MESSAGE_LEN];
+  uint8_t len = sizeof(buf);
+  char alertChecked[1];
+  alertChecked[0] = 'b';
+  float blinkerBatteryLevel = 0;
+  noInterrupts();
+  if (radio.available()) {
+    if (radio.recv(buf, &len)) {
+      if (!len) return;
+      buf[len] = 0;
+      String bufferString = (char *)buf;
+      blinkerBatteryLevel = bufferString.toFloat();
+      Serial.println(blinkerBatteryLevel);
+      radio.send((uint8_t *)alertChecked, 1);
+      blinkerBatteryChecked = true;
+      delay(200);
+
+      if (blinkerBatteryLevel <= 3.4) {
+        tft.fillScreen(BLACK);
+        tft.setTextSize(2.5);
+        tft.setTextColor(RED);
+        tft.setCursor(18, 0);
+        tft.println("Recharge");
+        tft.setCursor(18, 20);
+        tft.println("blinker!");
+        tft.fillRect(15, 70, 5, 20, RED);
+        tft.drawRect(20, 50, 90, 60, RED);
+        tft.fillRect(100, 50, 10, 60, RED);
+        delay(3000);
+      }
+    } else {
+      tft.println("Didn't get anything");
+    }
+  }
+  
+  interrupts();
 }

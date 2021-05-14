@@ -1,3 +1,4 @@
+#include <avr/dtostrf.h>
 #include <Adafruit_IS31FL3731.h>
 #include <Adafruit_GrayOLED.h>
 #include <gfxfont.h>
@@ -6,20 +7,25 @@
 #include <Adafruit_SPITFT_Macros.h>
 #include <RH_RF69.h>
 
-//Set up the radio
+// Radio properties
 #define RF69_FREQ 915.0
 #define RFM69_CS      8
 #define RFM69_INT     3
 #define RFM69_RST     4
 #define LED           13
 
-//set up blink modes
+// power measure pin
+#define POWER_PIN A7
+
+// Blink mode definitions
 const char noBlinker = '0';
 const char left = '1';
 const char right = '2';
-char blinkMode = left;
+char blinkMode = noBlinker;
 
-//set up display properties
+boolean batteryChecked = false;
+
+// Display properties
 const int maxBrightness = 255;
 const int minBrightness = 0;
 const int ledWidth = 15;
@@ -30,10 +36,11 @@ RH_RF69 radio(RFM69_CS, RFM69_INT);
 
 void setup () {
   Serial.begin(9600);
+
+//  set up the radio
   pinMode(RFM69_RST, OUTPUT);
   digitalWrite(RFM69_RST, LOW);
-
-//  Reset the radio
+  
   digitalWrite(RFM69_RST, HIGH);
   delay(10);
   digitalWrite(RFM69_RST, LOW);
@@ -43,24 +50,29 @@ void setup () {
     Serial.println("Radio didn't initialize");
     while (1);
   }
-
-  Serial.println("Radio started ok");
-
-  if (!ledMatrix.begin()) {
-    Serial.println("display not found");
-    while(1);
-  }
   if (!radio.setFrequency(RF69_FREQ)) {
     Serial.println("setFrequency failed");
   }
+  
   uint8_t key[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
                     0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
   radio.setEncryptionKey(key);
 
+//  initialize the led matrix
+  if (!ledMatrix.begin()) {
+    Serial.println("display not found");
+    while(1);
+  }
+
   ledMatrix.fillScreen(minBrightness);
+
+//  check the battery level before proceeding
+  pinMode(POWER_PIN, INPUT);
 }
 
 void loop () {
+  if (!batteryChecked) { checkPower(); }
+  
   switch (blinkMode) {
     case noBlinker:
       ledMatrix.fillScreen(minBrightness);
@@ -85,13 +97,14 @@ void loop () {
       Serial.print("Received: ");
       Serial.println((char*)buf);
       blinkMode = buf[0];
-      Serial.println(blinkMode);
     } else {
       Serial.println("Didn't get anything");
     }
 
     // todo: reply to confirm reciept
   }
+
+//  delay(200);
 }
 
 void runBlinker() {
@@ -107,4 +120,26 @@ void runBlinker() {
   }
   
   ledMatrix.fillScreen(minBrightness);
+}
+
+void checkPower () {
+  Serial.println("checking power");
+  float currPower = analogRead(POWER_PIN) * 2 * 3.3 / 1024;
+  char payload[RH_RF69_MAX_MESSAGE_LEN];
+  dtostrf(currPower, 4, 2, payload);
+  uint8_t replyBuf[RH_RF69_MAX_MESSAGE_LEN];
+  uint8_t replyLen = sizeof(replyBuf);
+  radio.send((uint8_t *)payload, strlen(payload));
+
+//  wait for a reply to make sure that we're done checking the battery
+  if (radio.waitAvailableTimeout(500)) {
+    if (radio.recv(replyBuf, &replyLen)) {
+      if (replyBuf[0] == 'b') {
+        batteryChecked = true;
+        Serial.println("done checking power");
+      }
+    } else {
+      delay(20);
+    }
+  }
 }
