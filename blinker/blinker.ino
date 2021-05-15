@@ -51,7 +51,8 @@ void setup () {
   if (!radio.setFrequency(RF69_FREQ)) {
     Serial.println("setFrequency failed");
   }
-  
+
+  radio.setTxPower(15, true);
   uint8_t key[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
                     0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08};
   radio.setEncryptionKey(key);
