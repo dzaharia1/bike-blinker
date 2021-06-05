@@ -106,15 +106,25 @@ void loop () {
 }
 
 void runBlinker() {
-  int numFrames = 5;
+  int numFrames = 8;
   int maxFactor = pow(maxBrightness, 2);
   int increment = maxFactor / numFrames;
   
   for (int i = 0; i < ledWidth + numFrames; i ++) {
+    ledMatrix.fillTriangle(
+      i + 1, 0,
+      i, ledHeight,
+      i + 4, 3,
+      maxBrightness
+    );
     for (int j = numFrames; j >= 0; j --) {
-      ledMatrix.drawLine(i - j, 0, i - j, ledHeight, maxBrightness - sqrt(increment * j));
+      ledMatrix.drawLine(
+        i - j, 0,
+        i - j, ledHeight,
+        maxBrightness - sqrt(increment * j)
+      );
     }
-    delay(50);
+    delay(30);
   }
   
   ledMatrix.fillScreen(minBrightness);
