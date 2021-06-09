@@ -21,6 +21,7 @@
 const char noBlinker = '0';
 const char left = '1';
 const char right = '2';
+const char visibilitySignal = '3';
 char blinkMode = noBlinker;
 
 // Display properties
@@ -85,6 +86,9 @@ void loop () {
       ledMatrix.setRotation(2);
       runBlinker();
       break;
+    case visibilitySignal:
+      runVisibilitySignal();
+      break;
   }
 
   if (radio.available()) {
@@ -105,7 +109,14 @@ void loop () {
   }
 }
 
-void runBlinker() {
+void runVisibilitySignal () {
+  ledMatrix.fillScreen(maxBrightness);
+  delay(100);
+  ledMatrix.fillScreen(minBrightness);
+  delay(50);
+}
+
+void runBlinker () {
   int numFrames = 8;
   int maxFactor = pow(maxBrightness, 2);
   int increment = maxFactor / numFrames;
@@ -134,7 +145,7 @@ boolean attemptHandshake() {
   Serial.println("Attempting handshake");
   // flash the led matrix to indicate attempting pairing
   for (int i = 0; i < 2; i ++) {
-    ledMatrix.fillScreen(maxBrightness / 2);
+    ledMatrix.fillScreen(maxBrightness / 4);
     delay(50);
     ledMatrix.fillScreen(minBrightness);
     delay(50);

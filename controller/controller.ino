@@ -34,7 +34,8 @@
 
 const int noBlinker = 0;
 const int leftBlinker = 1;
-const int rightBlinker = 21;
+const int rightBlinker = 2;
+const int visibilitySignal = 3;
 
 const long debounceTime = 300;
 const int rightButton = 12;
@@ -123,6 +124,9 @@ void loop() {
       tft.setRotation(3);
       runBlinker();
       break;
+    case visibilitySignal:
+      runVisibilitySignal();
+      break;
   }
 }
 
@@ -134,10 +138,25 @@ void runBlinker () {
       break;
     }
     //    tft.drawLine(0, i, SCREEN_WIDTH, i, YELLOW);
-    tft.drawTriangle(SCREEN_WIDTH / 2, i, SCREEN_WIDTH, i - triangleHeight, 0, i - triangleHeight, YELLOW);
+    tft.drawTriangle(
+      SCREEN_WIDTH / 2, i,
+      SCREEN_WIDTH, i - triangleHeight,
+      0, i - triangleHeight,
+      YELLOW
+    );
 
   }
   tft.fillScreen(BLACK);
+}
+
+void runVisibilitySignal () {
+  tft.setRotation(0);
+  tft.fillCircle(
+    SCREEN_WIDTH / 2,
+    SCREEN_HEIGHT / 2,
+    SCREEN_WIDTH / 2,
+    YELLOW
+  );
 }
 
 void rightButtonListener () {
@@ -172,9 +191,17 @@ void leftButtonListener () {
 
 void centerButtonListener () {
   if (long(micros() - last_micros) >= debounceTime * 1000) {
-    Serial.println("unset blinker");
-    blinkMode = noBlinker;
+//    Serial.println("unset blinker");
+//    blinkMode = noBlinker;
+    if (blinkMode == visibilitySignal) {
+      Serial.println("unset visibility");
+      blinkMode = noBlinker;
+    } else {
+      Serial.println("set visibility");
+      blinkMode = visibilitySignal;
+    }
     sendState();
+    
     last_micros = micros();
   }
 }
