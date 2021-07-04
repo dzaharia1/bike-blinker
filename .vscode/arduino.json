@@ -1,6 +1,0 @@
-{
-    "board": "arduino:avr:uno",
-    "sketch": "blinker.ino",
-    "programmer": "arduino:avrispmkii",
-    "port": "/dev/cu.usbmodem22201"
-}
