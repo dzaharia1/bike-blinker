@@ -162,7 +162,6 @@ boolean attemptHandshake() {
 //  listen for a reply from the controller
   uint8_t replyBuf[RH_RF69_MAX_MESSAGE_LEN];
   uint8_t replyLen = sizeof(replyBuf);
-  boolean handshook = false;
   if (radio.waitAvailableTimeout(500)) {
     if (radio.recv(replyBuf, &replyLen)) {
       if (replyBuf[0] == 'b') {
