@@ -4,14 +4,21 @@
 #include <SPI.h>
 #include <RH_RF69.h>
 
-//set up radio
+// set up radio
 #define RFM69_CS      8
 #define RFM69_INT     3
 #define RFM69_RST     4
 #define LED           13
-#define RF69_FREQ 915.0
+#define RF69_FREQ     915.0
 
-#define POWER_PIN A7
+// set up power pin
+#define POWER_PIN     A7
+
+// set up button LEDs
+#define LEFTLED       A3
+#define RIGHTLED      A0
+#define LEFTBUTTON    A2
+#define RIGHTBUTTON   A1
 
 const int noBlinker = 0;
 const int leftBlinker = 1;
@@ -19,8 +26,6 @@ const int rightBlinker = 2;
 const int visibilitySignal = 3;
 
 const long debounceTime = 300;
-const int rightButton = A1;
-const int leftButton = A2;
 const int centerButton = 13;
 
 volatile int blinkMode = noBlinker;
@@ -37,8 +42,8 @@ int checkIncrement = 0;
 void setup() {
   Serial.begin(9600);
 
-  pinMode(rightButton, INPUT_PULLUP);
-  pinMode(leftButton, INPUT_PULLUP);
+  pinMode(RIGHTBUTTON, INPUT_PULLUP);
+  pinMode(LEFTBUTTON, INPUT_PULLUP);
   pinMode(centerButton, INPUT_PULLUP);
   pinMode(RFM69_RST, OUTPUT);
   pinMode(POWER_PIN, INPUT);
@@ -71,8 +76,8 @@ void setup() {
     delay(500);
   }
 
-  attachInterrupt(digitalPinToInterrupt(rightButton), rightButtonListener, FALLING);
-  attachInterrupt(digitalPinToInterrupt(leftButton), leftButtonListener, FALLING);
+  attachInterrupt(digitalPinToInterrupt(RIGHTBUTTON), rightButtonListener, FALLING);
+  attachInterrupt(digitalPinToInterrupt(LEFTBUTTON), leftButtonListener, FALLING);
   attachInterrupt(digitalPinToInterrupt(centerButton), centerButtonListener, FALLING);
   last_micros = micros();
 }
@@ -149,19 +154,20 @@ void sendState () {
   //  radio.waitPacketSent();
   uint8_t buf[RH_RF69_MAX_MESSAGE_LEN];
   uint8_t len = sizeof(buf);
+  delay(500);
 }
 
 void checkBattery() {
   float currPower = analogRead(POWER_PIN) * 2 * 3.3 / 1024;
   if (currPower <= 3.4) {
     // low power animation
-    
+
   }
   delay(5000);
 }
 
 boolean listenForHandshake() {
-  // TODO: indicate listen
+  // TODO: indicate listen 
   
   uint8_t buf[RH_RF69_MAX_MESSAGE_LEN];
   uint8_t len = sizeof(buf);
