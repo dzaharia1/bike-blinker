@@ -48,6 +48,7 @@ void setup() {
   pinMode(RFM69_RST, OUTPUT);
   pinMode(POWER_PIN, INPUT);
   digitalWrite(RFM69_RST, LOW);
+  pinMode(LED_BUILTIN, OUTPUT);
 
   //  Reset the radio
   digitalWrite(RFM69_RST, HIGH);
@@ -168,6 +169,14 @@ void checkBattery() {
 
 boolean listenForHandshake() {
   // TODO: indicate listen 
+  for (int i = 0; i < 128; i ++) {
+    analogWrite(LED_BUILTIN, i * 2);
+    delay(5);
+  }
+  for (int i = 128; i > 0; i --) {
+    analogWrite(LED_BUILTIN, i * 2);
+    delay(5);
+  }
   
   uint8_t buf[RH_RF69_MAX_MESSAGE_LEN];
   uint8_t len = sizeof(buf);
