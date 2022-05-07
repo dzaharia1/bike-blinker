@@ -70,8 +70,6 @@ void setup() {
                     0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08
                   };
   radio.setEncryptionKey(key);
-  
-//  TODO: INDICATE check that there's a blinker nearby
 
   while (!listenForHandshake()) {
     delay(500);
@@ -81,24 +79,41 @@ void setup() {
   attachInterrupt(digitalPinToInterrupt(LEFTBUTTON), leftButtonListener, FALLING);
   attachInterrupt(digitalPinToInterrupt(centerButton), centerButtonListener, FALLING);
   last_micros = micros();
-}
+} 
 
 void loop() {
   // TODO: create the indicator states
   switch (blinkMode) {
     case noBlinker:
-      // indicate no blinker
+      delay(10);
       break;
     case leftBlinker:
       // indicate left blinker
+      runBlinker(LEFTLED);
       break;
     case rightBlinker:
       // indicate right blinker
+      runBlinker(RIGHTLED);
       break;
     case visibilitySignal:
       // indicate visibility signal
       break;
   }
+}
+
+void runBlinker(int led) {
+  digitalWrite(led, HIGH);
+  delay(500);
+  digitalWrite(led, LOW);
+  delay(500);
+}
+
+void runHazard() {
+  digitalWrite(LEFTLED, HIGH);
+  digitalWrite(RIGHTLED, HIGH);
+  delay(500);
+  digitalWrite(LEFTLED, LOW);
+  digitalWrite(RIGHTLED, LOW);
 }
 
 void rightButtonListener () {
@@ -190,7 +205,7 @@ boolean listenForHandshake() {
       String bufferString = (char *)buf;
       blinkerBatteryLevel = bufferString.toFloat();
       radio.send((uint8_t *)alertChecked, 1);
-      // blinker low batter indication
+      // blinker low battery indication
       delay(4000);
       return true;
     }
