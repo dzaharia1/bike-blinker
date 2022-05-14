@@ -15,10 +15,10 @@
 #define POWER_PIN     A7
 
 // set up button LEDs
-#define LEFTLED       A3
-#define RIGHTLED      A0
-#define LEFTBUTTON    A2
-#define RIGHTBUTTON   A1
+#define RIGHTBUTTON   10
+#define LEFTBUTTON    11
+#define RIGHTLED      12
+#define LEFTLED       13
 
 const int noBlinker = 0;
 const int leftBlinker = 1;
@@ -77,7 +77,6 @@ void setup() {
 
   attachInterrupt(digitalPinToInterrupt(RIGHTBUTTON), rightButtonListener, FALLING);
   attachInterrupt(digitalPinToInterrupt(LEFTBUTTON), leftButtonListener, FALLING);
-  attachInterrupt(digitalPinToInterrupt(centerButton), centerButtonListener, FALLING);
   last_micros = micros();
 } 
 
@@ -99,12 +98,13 @@ void loop() {
       // indicate visibility signal
       break;
   }
+  // sendState();
 }
 
 void runBlinker(int led) {
-  digitalWrite(led, HIGH);
+  analogWrite(led, 255);
   delay(500);
-  digitalWrite(led, LOW);
+  analogWrite(led, 0);
   delay(500);
 }
 
@@ -114,51 +114,45 @@ void runHazard() {
   delay(500);
   digitalWrite(LEFTLED, LOW);
   digitalWrite(RIGHTLED, LOW);
+  delay(500);
 }
 
 void rightButtonListener () {
   if (long(micros() - last_micros) >= debounceTime * 1000) {
-    if (blinkMode == rightBlinker) {
-      Serial.println("unset right");
-      blinkMode = noBlinker;
+    if (digitalRead(LEFTBUTTON) == HIGH) {
+      Serial.println("set hazard");
+      blinkMode = visibilitySignal;
     } else {
-      Serial.println("set right");
-      blinkMode = rightBlinker;
+      if (blinkMode == rightBlinker) {
+        Serial.println("unset right");
+        blinkMode = noBlinker;
+      } else {
+        Serial.println("set right");
+        blinkMode = rightBlinker;
+      }
     }
-    sendState();
 
+    sendState();
     last_micros = micros();
   }
 }
 
 void leftButtonListener () {
   if (long(micros() - last_micros) >= debounceTime * 1000) {
-    if (blinkMode == leftBlinker) {
-      Serial.println("unset left");
-      blinkMode = noBlinker;
-    } else {
-      Serial.println("set left");
-      blinkMode = leftBlinker;
-    }
-    sendState();
-
-    last_micros = micros();
-  }
-}
-
-void centerButtonListener () {
-  if (long(micros() - last_micros) >= debounceTime * 1000) {
-//    Serial.println("unset blinker");
-//    blinkMode = noBlinker;
-    if (blinkMode == visibilitySignal) {
-      Serial.println("unset visibility");
-      blinkMode = noBlinker;
-    } else {
-      Serial.println("set visibility");
+    if (digitalRead(RIGHTBUTTON) == HIGH) {
+      Serial.println("set hazard");
       blinkMode = visibilitySignal;
+    } else{
+      if (blinkMode == leftBlinker) {
+        Serial.println("unset left");
+        blinkMode = noBlinker;
+      } else {
+        Serial.println("set left");
+        blinkMode = leftBlinker;
+      }
     }
+
     sendState();
-    
     last_micros = micros();
   }
 }
@@ -168,28 +162,19 @@ void sendState () {
   itoa(blinkMode, stateMessage, 10);
   radio.send((uint8_t *)stateMessage, 1);
   //  radio.waitPacketSent();
-  uint8_t buf[RH_RF69_MAX_MESSAGE_LEN];
-  uint8_t len = sizeof(buf);
   delay(500);
-}
-
-void checkBattery() {
-  float currPower = analogRead(POWER_PIN) * 2 * 3.3 / 1024;
-  if (currPower <= 3.4) {
-    // low power animation
-
-  }
-  delay(5000);
 }
 
 boolean listenForHandshake() {
   // TODO: indicate listen 
   for (int i = 0; i < 128; i ++) {
-    analogWrite(LED_BUILTIN, i * 2);
+    analogWrite(LEFTLED, i * 2);
+    analogWrite(RIGHTLED, i * 2);
     delay(5);
   }
   for (int i = 128; i > 0; i --) {
-    analogWrite(LED_BUILTIN, i * 2);
+    analogWrite(LEFTLED, i * 2);
+    analogWrite(RIGHTLED, i * 2);
     delay(5);
   }
   
