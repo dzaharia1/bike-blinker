@@ -23,7 +23,8 @@
 const int noBlinker = 0;
 const int leftBlinker = 1;
 const int rightBlinker = 2;
-const int visibilitySignal = 3;
+const int hazard = 3;
+int visibilityMode = 0;
 
 const long debounceTime = 300;
 const int centerButton = 13;
@@ -94,8 +95,9 @@ void loop() {
       // indicate right blinker
       runBlinker(RIGHTLED);
       break;
-    case visibilitySignal:
+    case hazard:
       // indicate visibility signal
+      runHazard();
       break;
   }
   // sendState();
@@ -109,11 +111,11 @@ void runBlinker(int led) {
 }
 
 void runHazard() {
-  digitalWrite(LEFTLED, HIGH);
-  digitalWrite(RIGHTLED, HIGH);
+  analogWrite(LEFTLED, 255);
+  analogWrite(RIGHTLED, 255);
   delay(500);
-  digitalWrite(LEFTLED, LOW);
-  digitalWrite(RIGHTLED, LOW);
+  analogWrite(LEFTLED, 0);
+  analogWrite(RIGHTLED, 0);
   delay(500);
 }
 
@@ -121,11 +123,16 @@ void rightButtonListener () {
   if (long(micros() - last_micros) >= debounceTime * 1000) {
     if (digitalRead(LEFTBUTTON) == HIGH) {
       Serial.println("set hazard");
-      blinkMode = visibilitySignal;
+      if (visibilityMode == hazard) {
+        visibilityMode = noBlinker;
+      } else {
+        visibilityMode = hazard;
+      }
+      blinkMode = visibilityMode;
     } else {
       if (blinkMode == rightBlinker) {
         Serial.println("unset right");
-        blinkMode = noBlinker;
+        blinkMode = visibilityMode;
       } else {
         Serial.println("set right");
         blinkMode = rightBlinker;
@@ -141,11 +148,17 @@ void leftButtonListener () {
   if (long(micros() - last_micros) >= debounceTime * 1000) {
     if (digitalRead(RIGHTBUTTON) == HIGH) {
       Serial.println("set hazard");
-      blinkMode = visibilitySignal;
+      if (visibilityMode == hazard)
+      {
+        visibilityMode = noBlinker;
+      } else {
+        visibilityMode = hazard;
+      }
+      blinkMode = visibilityMode;
     } else{
       if (blinkMode == leftBlinker) {
         Serial.println("unset left");
-        blinkMode = noBlinker;
+        blinkMode = visibilityMode;
       } else {
         Serial.println("set left");
         blinkMode = leftBlinker;
