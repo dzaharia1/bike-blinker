@@ -24,7 +24,7 @@ const int noBlinker = 0;
 const int leftBlinker = 1;
 const int rightBlinker = 2;
 const int hazard = 3;
-int visibilityMode = 0;
+int visibilityMode = noBlinker;
 
 const long debounceTime = 300;
 const int centerButton = 13;
@@ -105,9 +105,9 @@ void loop() {
 
 void runBlinker(int led) {
   analogWrite(led, 255);
-  delay(500);
+  delay(125);
   analogWrite(led, 0);
-  delay(500);
+  delay(125);
 }
 
 void runHazard() {
@@ -121,7 +121,7 @@ void runHazard() {
 
 void rightButtonListener () {
   if (long(micros() - last_micros) >= debounceTime * 1000) {
-    if (digitalRead(LEFTBUTTON) == HIGH) {
+    if (digitalRead(LEFTBUTTON)) {
       Serial.println("set hazard");
       if (visibilityMode == hazard) {
         visibilityMode = noBlinker;
@@ -146,7 +146,7 @@ void rightButtonListener () {
 
 void leftButtonListener () {
   if (long(micros() - last_micros) >= debounceTime * 1000) {
-    if (digitalRead(RIGHTBUTTON) == HIGH) {
+    if (digitalRead(RIGHTBUTTON)) {
       Serial.println("set hazard");
       if (visibilityMode == hazard)
       {
